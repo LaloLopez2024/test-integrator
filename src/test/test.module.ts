@@ -9,7 +9,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from 'src/auth/entities/user.entity';
 import { ReturnService } from 'src/return/return.service';
 import { TWoaResponse } from 'src/return/entities/twoa-response.entity';
-import { WoaService } from 'src/woa/woa.service';
+import { WoaModule } from 'src/woa/woa.module';
 import { ArticleService } from 'src/article/article.service';
 import { XmlService } from 'src/shared/service/xml.service';
 import { ApiService } from 'src/shared/service/api.service';
@@ -17,7 +17,6 @@ import { Woa } from 'src/woa/entities/woa.entity';
 import { RouteService } from 'src/route/route.service';
 import { SequenceService } from 'src/woa/secuence.service';
 import { SequenceDetailService } from 'src/woa/secuence-detail.service';
-import { PrintFileService } from 'src/woa/printFile.service';
 import { Article } from 'src/article/entities/article.entity';
 import { Route } from 'src/route/entities/route.entity';
 import { TSequence } from 'src/woa/entities/tsequence.entity';
@@ -40,14 +39,12 @@ import { ProcessReturnService } from 'src/return/process-return.service';
     AuthModule,
     ProcessReturnService,
     ReturnService,
-    WoaService,
     ArticleService,
     XmlService,
     ApiService,
     RouteService,
     SequenceService,
     SequenceDetailService,
-    PrintFileService,
     TraceService,
     TcpModule,
     Trama32RTrackerService,
@@ -61,6 +58,7 @@ import { ProcessReturnService } from 'src/return/process-return.service';
     },
   ],
    imports:[
+      WoaModule,
       HttpModule,
       TypeOrmModule.forFeature([ User, TWoaResponse, Woa, Article, Route, TSequence, TSequenceDetail, Trace ])
     ]

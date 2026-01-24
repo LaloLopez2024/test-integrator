@@ -17,6 +17,8 @@ import moment from 'moment';
 import { ArticleService } from 'src/article/article.service';
 import * as csvParse from 'csv-parse/sync';
 import { Article } from 'src/article/entities/article.entity';
+import { WoaCalculationService } from './woa-calculation.service';
+import { WoaConfig } from './config/woa-config';
 
 @Injectable()
 export class WoaService {
@@ -32,7 +34,8 @@ constructor(
   private readonly sequenceDetailService: SequenceDetailService,
   private readonly printFileService: PrintFileService,
   private readonly traceService: TraceService,
-  private readonly articleService: ArticleService
+  private readonly articleService: ArticleService,
+  private readonly woaCalculationService: WoaCalculationService
 ){}
 
   async iniciarProceso(trama: string) {
@@ -46,20 +49,18 @@ constructor(
     try
     {
       this.logger.logError("Inicio procesamiento de datos recibidos en WOA");
-      const createWoaList = await this.procesarTramaWAO(trama);
-      this.logger.logError("PASO 1");
+      let createWoaList = await this.procesarTramaWAO(trama);
+      
       if(createWoaList && createWoaList.length > 0) {
-        this.logger.logError("PASO 2");
-        //const dataSaved = await this.saveWoa(createWoaList);
-        const dataSaved = await this.calculateVolumenLinea(createWoaList);
-  
+        const dataSaved = await this.saveWoa(createWoaList);
+        
         if(dataSaved && dataSaved.length > 0){
           this.logger.logError("Inicio de envío de tramas WOA");
-          //await this.sendToKisoft(dataSaved);
+          await this.sendToKisoft(dataSaved);
     
           this.logger.logError("Inicio de generación de archivo de impresión");
           await this.printFileService.generatePrintFile(dataSaved);
-        } 
+        }
       }
     }
     catch(error) {
@@ -120,13 +121,14 @@ constructor(
       for (const dto of data) {
         const articleKey = `${dto.allocated_location}_${dto.part_a}`;
         const article = articlesMap.get(articleKey);
-        
+
         if (article && dto.allocated_qty) {
           dto.volumen_linea = Number(dto.allocated_qty) * Number(article.Volumen_Unidad);
         } else {
           dto.volumen_linea = 0;
         }
-        this.logger.logError(`allocated_location: ${dto.allocated_location} - part_a:${dto.part_a} - volumen_linea: ${JSON.stringify(dto.volumen_linea, null, 2)}`);
+        
+        this.logger.logError(`oblpn:${dto.oblpn} - allocated_location: ${dto.allocated_location} - part_a:${dto.part_a} - allocated_qty:${dto.allocated_qty} - volumen_linea: ${dto.volumen_linea}`);
       }
 
       return data;
@@ -142,14 +144,14 @@ constructor(
 
     for (let i = 0; i < data.length; i += batchSize) {
       const batch = data.slice(i, i + batchSize);
-      const woaInsert = await this.saveWoa3(batch);
+      const woaInsert = await this.saveWoaByChunk(batch);
       woaSaved.push(...woaInsert);
     }
 
     return woaSaved;
   }
 
-  private async saveWoa3(data: CreateWoaDto[]): Promise<CreateWoaDto[]> {
+  private async saveWoaByChunk(data: CreateWoaDto[]): Promise<CreateWoaDto[]> {
     const woaSaved: CreateWoaDto[] = [];
 
     const duplicates = this.findDuplicates(data);
@@ -179,6 +181,7 @@ constructor(
     }
 
     const articles = await this.articleService.findAddByKeys(data);
+
     const articlesMap = new Map<string, Article>();
     for (const article of articles) {
       const key = `${article.Cod_Barra_Ubicacion}_${article.Cod_Alt_Producto}`;
@@ -201,6 +204,9 @@ constructor(
       try{
         if (article && dto.allocated_qty) {
           volumen_linea = Number(dto.allocated_qty) * Number(article.Volumen_Unidad);
+        }
+        else {
+          volumen_linea = 0;
         }
       }
       catch(error) {
@@ -383,8 +389,9 @@ constructor(
               const ob_lpn_type_station_allow: string[] = [ '02', '04', '05', '06', '07', '08', '11' ];
 
               if(ob_lpn_type_station_allow.includes(createWoaDto.ob_lpn_type)) {
-                const sumaVolumenLinea = createWoaDto.ob_lpn_type == '06' ? this.getSumaVolumenLinea(data, createWoaDto.oblpn) : 0;
-                const secuenceTrama = await this.getSeccionesConcatenadas(ob_lpn_type_kisoft, createWoaDto, sequenceDetailService.sequenceId, sumaVolumenLinea > 18000);
+                const volumenLinea = this.woaCalculationService.getSumaVolumenLinea(data, createWoaDto.oblpn);
+                const sumaVolumenLinea = createWoaDto.ob_lpn_type === '06' ? volumenLinea : 0;
+                const secuenceTrama = await this.getSeccionesConcatenadas(ob_lpn_type_kisoft, createWoaDto, sequenceDetailService.sequenceId, sumaVolumenLinea > WoaConfig.VOLUMEN_LINEA_THRESHOLD);
                 partsTrama.push(secuenceTrama);
               }
               break;
@@ -434,15 +441,13 @@ constructor(
     }
   }
 
-  getSumaVolumenLinea(data: CreateWoaDto[], oblpn: string) {
-    const volumenLineas = data.filter(woa => woa.oblpn == oblpn && woa.volumen_linea != null).map(woa => woa.volumen_linea);
-    return volumenLineas.reduce((acc, value) => acc + (typeof value === 'number' ? value : 0), 0);
-  }
 
   async getSeccionesConcatenadas(oblpnTypeKisoft: string, woa: CreateWoaDto, sequenceId: number, flgVolumenLinea: boolean) : Promise<string> {
     const sequenceTrama: string[] = [];
     const sequence = await this.sequenceService.findById(sequenceId);
     let cantSections = 0;
+
+    this.logger.logError(`oblpn:${woa.oblpn} - getSeccionesConcatenadas - sequence = ${JSON.stringify(sequence, null, 2)}`);
 
     if(sequence) {
       const sec0 = sequence.SEC0 ? sequence.SEC0.replace(/\s+/g, '') : '';
@@ -452,15 +457,15 @@ constructor(
       let sec4 = sequence.SEC4 ? sequence.SEC4.replace(/\s+/g, '') : '';
       const sec5 = sequence.SEC5 ? sequence.SEC5.replace(/\s+/g, '') : '';
 
-      if(woa.ob_lpn_type == '06') {
-        if(flgVolumenLinea && Number(woa.oblpn) % 2 == 0) {
-          sec1 = '';
-        }
+      // Si volumen > VOLUMEN_LINEA_THRESHOLD y es PAR, eliminar SEC1
+      if(flgVolumenLinea && Number(woa.oblpn) % 2 == 0) {
+        sec1 = '';
+      }
 
-        if(!flgVolumenLinea) {
-          sec3 = '';
-          sec4 = '';
-        }
+      // Si volumen <= VOLUMEN_LINEA_THRESHOLD, eliminar SEC3 y SEC4
+      if(!flgVolumenLinea) {
+        sec3 = '';
+        sec4 = '';
       }
 
       if(sec0 != '') {
@@ -510,9 +515,13 @@ constructor(
         cantSections++;
       }
 
-      sequenceTrama.unshift(`K${this.textService.padText(sequenceTrama.length.toString(), 2, '0')}03`);
-      return sequenceTrama.join('');
+      if(sequenceTrama.length > 0) {
+        sequenceTrama.unshift(`K${this.textService.padText(sequenceTrama.length.toString(), 2, '0')}03`);
+        return sequenceTrama.join('');
+      }
     }
+    
+    return '';
   }
 
   private buildTramaDetalleKisoft(data: CreateWoaDto[], oblpn: string): string {
@@ -525,7 +534,7 @@ constructor(
       if(dataSearch != undefined) {  
         dataSearch.forEach(dto => {
           
-          if(dto.allocated_location.trimStart().substring(0, 4) == ('AE10')) {
+          if(dto.allocated_location && dto.allocated_location.trimStart().substring(0, 4) == ('AE10')) {
             partsTrama.push(this.textService.padText('061', 3));
           }
           else {

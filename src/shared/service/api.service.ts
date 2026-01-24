@@ -79,7 +79,6 @@ export class ApiService {
               error.message,
             );
             this.logger.logError(`requestWithRetries error: ${JSON.stringify(error, null, 2)}`);
-            //this.logger.logError(JSON.stringify(error, null, 2));
             return timer(this.throttleDelay);
           },
           resetOnSuccess: true, // Opcional, por si quieres que al tener éxito se reinicie el contador
