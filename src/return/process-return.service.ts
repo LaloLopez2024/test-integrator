@@ -229,11 +229,11 @@ export class ProcessReturnService {
     }
 
     private async saveWoaResponse(data: CreateWoaResponseDto[]) {
-        data.forEach(async dto => {  
+        for(const dto of data) {
             const woaResponseEntity = this.woaResponseRepository.create(dto);
             await this.woaResponseRepository.save(woaResponseEntity);
             dto.id = woaResponseEntity.id;
-        });
+        }
     
         return data;
     }
@@ -665,7 +665,6 @@ export class ProcessReturnService {
 
     async procesaCasosTipo2(woaList: Woa[], data: CreateWoaResponseDto[]) {
         const woaListOrdered = [...woaList].sort((a, b) => a.id - b.id);
-        //const woaListProcessed = [];
         const list: ReturnDto[] = [];
         const woaUpdated: WoaResumen[] = [];
         const oblpnArticleProcessed: OblpnArticle[] = [];

@@ -130,8 +130,6 @@ export class ReturnService {
     catch(error) {
       this.logger.logError(`Ocurrió un error al procesar procesar la trama 32R, error: ${error.message}`, error.stack);
     }
-    //const dispatchRampNumber = trama.substring(73, 78);
-    //this.logger.logError(`dispatchRampNumber ${dispatchRampNumber}`);
   }
 
   extraerOblpn(trama: string){
@@ -248,25 +246,12 @@ export class ReturnService {
     }
   }
 
-
-
-
   async procesaCasosTipo1(woa: Woa, dto: CreateWoaResponseDto, id: number) {
     const list: ReturnDto[] = [];
     let detail = '';
 
     if(woa != null) {
       this.logger.logError(`procesaCasosTipo1 - item_alternate_code = ${dto.item_alternate_code}`);
-      //this.logger.logError(`procesaCasosTipo1 - woa.batch_nbr = ${woa.batch_nbr}`);
-
-      /*let origBatchNbr = dto.batch_nbr.replace(/\s+/g, '');
-
-      if(!this.validateNullString(woa.batch_nbr) && woa.batch_nbr != null) {
-        if(woa.batch_nbr.replace(/\s+/g, '') != dto.batch_nbr.replace(/\s+/g, '')) {
-          origBatchNbr = woa.batch_nbr;
-        }
-      }      
-      */
 
       const article = await this.articleService.findByCodBarraUbicacion(woa.allocated_location);
 
@@ -340,37 +325,6 @@ export class ReturnService {
       const qty = +woa.allocated_qty - +dto.qty;
       this.logger.logError(`qty dif resultado = ${qty}`);
       
-      /*
-      if(qty > 0) {
-        /*const dtoReturn: ReturnDto = {
-          facility_id__code: '',
-          company_id__code: '',
-          wave_nbr: '',
-          order_nbr: '',
-          item_alternate_code: '',
-          batch_nbr: '',
-          load_unit_code: '',
-          qty: qty.toString(),
-          orig_invn_attr_a: '',
-          invn_attr_a: '',
-          from_container_nbr: '',
-          to_container_nbr: '',
-          mhe_system_code: '',
-          pick_location: '',
-          short_flg: 'false',
-          orig_batch_nbr: '',
-          orig_iblpn_nbr: '',
-          send_driver: false
-        };
-          */
-
-        //dtoReturn.qty = qty.toString(),
-        //dtoReturn.short_flg = 'true';
-
-        //this.logger.logError(`getDataToSend - dtoReturn ADICIONAL`, JSON.stringify(dtoReturn, null, 2));
-
-        //list.push(dtoReturn);
-      //}
     }
     else {
 
@@ -417,7 +371,6 @@ export class ReturnService {
 
   async procesaCasosTipo2(woaList: Woa[], data: CreateWoaResponseDto[]) {
     const woaListOrdered = [...woaList].sort((a, b) => a.id - b.id);
-    //const woaListProcessed = [];
     const list: ReturnDto[] = [];
     const woaUpdated: WoaResumen[] = [];
     const oblpnArticleProcessed: OblpnArticle[] = [];
@@ -570,12 +523,6 @@ export class ReturnService {
       for(const returnDto of returnFaltante) {
         let qtySobrante = 0;
         let woaActualizado: WoaActualizado[] = [];
-        //this.logger.logError(`procesaCasosTipo2 - RETURN A VALIDAR  - eturnDto.id = ${returnDto.id}`);
-        //this.logger.logError(`procesaCasosTipo2 - qtySobrante = ${qtySobrante}`);
-
-       // const woaPendientes = woaListOrdered.filter(woa => (!woaUpdatedIds.has(woa.id)) && 
-       //                                                   woa.oblpn == returnDto.to_container_nbr &&
-       //                                                   woa.item_alternate_code == returnDto.item_alternate_code);
 
         const woaPendientes = woaListOrdered.filter(woa => {
                               if (woa.oblpn !== returnDto.to_container_nbr) return false;
@@ -587,58 +534,30 @@ export class ReturnService {
         
         if(woaPendientes) {
           const woaPendienteIds = woaPendientes.map(x => x.id);
-          //this.logger.logError(`procesaCasosTipo2 - woaPendienteIds`, JSON.stringify(woaPendienteIds, null, 2));
-          //this.logger.logError(`procesaCasosTipo2 - woaActualizado`, JSON.stringify(woaActualizado, null, 2));
-
           
           for (const woa of woaPendientes) { 
             
             const returnQty = (qtySobrante > 0 ? qtySobrante : Number(returnDto.qty));
-            //this.logger.logError(`procesaCasosTipo2 - returnDto.qty = ${returnDto.qty}`);
-            //this.logger.logError(`procesaCasosTipo2 - returnQty = ${returnQty}`);
-
-            
-            //this.logger.logError(`procesaCasosTipo2 - woa.id = ${woa.id}`);
-            //this.logger.logError(`procesaCasosTipo2 - woa.allocated_qty = ${woa.allocated_qty}`);
-            //this.logger.logError(`procesaCasosTipo2 - woa.cant_return = ${woa.cant_return}`);
     
             //Para los R32 que llegaron con cantidades menores a los del woa          
-            
-            //this.logger.logError(`procesaCasosTipo2 - woa.cant_return = ${woa.cant_return}`);
-            //this.logger.logError(`procesaCasosTipo2 - returnDto.id = ${returnDto.id}`);
-            //this.logger.logError(`procesaCasosTipo2 - returnDto.item_alternate_code = ${returnDto.item_alternate_code}`);
-            //this.logger.logError(`procesaCasosTipo2 - returnQty = ${returnQty}`);
             let returnFaltante = Number(woa.allocated_qty) - Number(woa.cant_return);
-            //this.logger.logError(`procesaCasosTipo2 - returnFaltante = ${returnFaltante}`);
             let woaCantReturn = Number(woa.cant_return) + returnQty;            
 
             if(woaActualizado.length > 0) {
-              //this.logger.logError(`procesaCasosTipo2 - woa.id buscado en woaActualizado = ${woa.id}`);
               const woaBuscado = woaActualizado.find(x => x.woaId == woa.id);
-              //this.logger.logError(`procesaCasosTipo2 - woaBuscado`, JSON.stringify(woaBuscado, null, 2));
 
               if(woaBuscado != null) {
                 woaCantReturn = Number(woaBuscado.qty) + returnQty; 
               }            
             }
-            
-            //this.logger.logError(`procesaCasosTipo2 - woaCantReturn = ${woaCantReturn}`);
 
             qtySobrante =  Number(woaCantReturn) > Number(woa.allocated_qty) ? Number(woaCantReturn) - Number(woa.allocated_qty) : 0;
-
-            //this.logger.logError(`procesaCasosTipo2 - qtySobrante = ${qtySobrante}`);
 
             woaCantReturn = Number(woaCantReturn) >= Number(woa.allocated_qty) ? Number(woa.allocated_qty) : Number(woaCantReturn);
 
             const qtyUtilizado = returnQty - qtySobrante;
 
-            //this.logger.logError(`procesaCasosTipo2 - qtyUtilizado = ${qtyUtilizado}`);
-
             if(Number(woa.allocated_qty) >= Number(woaCantReturn)) {
-              //this.logger.logError(`procesaCasosTipo2 - AÑADIR A LISTA********************************************`);
-              //this.logger.logError(`procesaCasosTipo2 - woaCantReturn = ${woaCantReturn}`);
-              //this.logger.logError(`procesaCasosTipo2 - qtyUtilizado = ${qtyUtilizado}`);
-              //this.logger.logError(`procesaCasosTipo2 - ********************************************`);
               
               const article = await this.articleService.findByCodBarraUbicacion(woa.allocated_location);
     
@@ -697,152 +616,9 @@ export class ReturnService {
               break;
           }
         }
-       
-      }
-
-/*
-      this.logger.logError(`procesaCasosTipo2 - PARA QTY FALTANTE ********************************************`);
-      
-      if(qtyFaltante > 0) {
-          const dto = returnFaltante[0];
-
-          const article = await this.articleService.findByCodBarraUbicacion(dto.pick_location);
-          const woa = woaListOrdered.find(woa => woa.oblpn == dto.to_container_nbr &&
-                                                woa.item_alternate_code == dto.item_alternate_code);
-          this.logger.logError(`procesaCasosTipo2 - article != null is ${article != null}`);
-          this.logger.logError(`procesaCasosTipo2 - woa != null is ${woa != null}`);
-
-            let dtoReturn: ReturnDto = {
-              facility_id__code: woa.facility_code,
-              company_id__code: process.env.COMPANY_CODE,
-              wave_nbr: woa.wave_number,
-              order_nbr: woa.order_number,
-              item_alternate_code: dto.item_alternate_code,
-              batch_nbr: '',
-              load_unit_code: dto.load_unit_code,
-              qty: qtyFaltante.toString(),
-              orig_invn_attr_a: woa.invn_attr_a,
-              invn_attr_a: woa.invn_attr_a,
-              from_container_nbr: woa.oblpn,
-              to_container_nbr: dto.to_container_nbr,
-              mhe_system_code: 'KISOFT',//woa.mhe_system_code,
-              pick_location: article != undefined ? article.Cod_Barra_2 : ' ',
-              short_flg: 'false',
-              orig_batch_nbr: '',
-              orig_iblpn_nbr: '',
-              send_driver: false,
-              qty_dif: false,
-              lot_exists: true
-            };
-  
-            list.push(dtoReturn);
-      }
-      */
-    }
-
-/*
-    this.logger.logError(`procesaCasosTipo2 - PARTE 3 - ******************************************************************************************************************************`);
-    //Se recorren los R32 que llegaron pero no coinciden en cantidad de artículos ni con batch_nbr
-
-    const returnIds = new Set(woaUpdated.map(x => x.returnId));
-    const returnList = data.filter(r => !returnIds.has(r.id));   
-
-    this.logger.logError(`procesaCasosTipo2 - returnList`, JSON.stringify(returnList, null, 2));
-
-    if(returnIds != null && returnList.length > 0) {
-
-      const returnPorProcesarAgrupado = this.groupAndSum(returnList);
-      const returnPorProcesar = returnPorProcesarAgrupado.sort((a, b) => Number(b.qty) - Number(a.qty));
-      const returnDtoPP = returnPorProcesar[0];
-
-      this.logger.logError(`procesaCasosTipo2 - returnPorProcesar`, JSON.stringify(returnPorProcesar, null, 2));
-
-      const woaLista = await this.woaService.findByOblpnAlternativeCode(returnDtoPP.to_container_nbr, returnDtoPP.item_alternate_code);
-      const woaPendiente = woaLista.filter(w => Number(w.allocated_qty) > Number(w.cant_return));
-
-      this.logger.logError(`procesaCasosTipo2 - woaPendiente`, JSON.stringify(woaPendiente, null, 2));
-
-      if(woaPendiente != null && woaPendiente.length > 0) {
-        for(const returnDto of returnFaltante) {
-
-          for (const woa of woaPendiente) {
-            const article = await this.articleService.findByCodBarraUbicacion(returnDto.pick_location);
-
-            this.logger.logError(`procesaCasosTipo2 - woaActualizado`, JSON.stringify(woaActualizado, null, 2));
-          
-            this.logger.logError(`procesaCasosTipo2 - woa.cant_return = ${woa.cant_return}`);
-            let woaCantReturn = Number(woa.cant_return) + Number(returnDto.qty);
-  
-            if(woaActualizado.length > 0) {
-              const newqty = woaActualizado.find(x => x.woaId == woa.id);
-
-              if(newqty) {
-                woaCantReturn = Number(newqty.qty) + Number(returnDto.qty);
-              }
-            }
-
-            this.logger.logError(`procesaCasosTipo2 - woa.allocated_qty = ${woa.allocated_qty}`);
-            this.logger.logError(`procesaCasosTipo2 - woaCantReturn = ${woaCantReturn}`);
-
-            if(Number(woa.allocated_qty) >= Number(woaCantReturn)) {
-              let dtoReturn: ReturnDto = {
-                facility_id__code: woa.facility_code,
-                company_id__code: process.env.COMPANY_CODE,
-                wave_nbr: woa.wave_number,
-                order_nbr: woa.order_number,
-                item_alternate_code: returnDto.item_alternate_code,
-                batch_nbr: returnDto.batch_nbr,
-                load_unit_code: returnDto.load_unit_code,
-                qty: returnDto.qty,
-                orig_invn_attr_a: woa.invn_attr_a,
-                invn_attr_a: woa.invn_attr_a,
-                from_container_nbr: woa.oblpn,
-                to_container_nbr: returnDto.to_container_nbr,
-                mhe_system_code: 'KISOFT',//woa.mhe_system_code,
-                pick_location: article != undefined ? article.Cod_Barra_2 : ' ',
-                short_flg: 'false',
-                orig_batch_nbr: woa.batch_nbr,
-                orig_iblpn_nbr: '',
-                send_driver: false,
-                qty_dif: false,
-                lot_exists: true
-              };
-    
-              list.push(dtoReturn);
-  
-              if(woaActualizado.length > 0)
-              {
-                const index = woaActualizado.findIndex(x => x.woaId == woa.id);
-
-                if(index >= 0){
-                  woaActualizado[index].qty = woaCantReturn;
-                }                
-              }
-              else {
-                woaActualizado.push({
-                  woaId: woa.id,
-                  qty: woaCantReturn
-                });
-              }
-  
-              woa.cant_return = woaCantReturn;
-              await this.woaService.updateWOA(woa);
-            }
-          }
-        }
       }
     }
-    */
 
-    /*const returnList = data.filter(x => x.to_container_nbr == woa.oblpn && 
-      x.item_alternate_code == woa.item_alternate_code && 
-      x.batch_nbr == woa.batch_nbr);
-
-    if(returnList != null) {
-
-
-    }
-    */
     return list;
   }
 
@@ -864,26 +640,6 @@ export class ReturnService {
   
 
   buildJsonLinkAssetStructure(to_container_nbr: string, load_unit_code: string) {
-    /*const xmlStructure = {
-      Envelope: {
-        $: { xmlns: 'http://schemas.xmlsoap.org/soap/envelope/' },
-        Body: {
-          Request: {
-              parameters: {
-                  "list-item": list.map((obj) => ({
-                      parameters: "1",
-                      company_id: "239",
-                      container_nbr: obj.to_container_nbr,
-                      asset_nbr: obj.load_unit_code,
-                      replace_container_nbr_with_asset_flg: 'false',
-                      validate_lpn_type_flg: 'false'
-                  })),
-            },
-          },
-        },
-      },
-    };*/
-
     this.logger.logError(`buildJsonLinkAssetStructure - to_container_nbr ${to_container_nbr}`);
     this.logger.logError(`buildJsonLinkAssetStructure - load_unit_code ${load_unit_code}`);
 
@@ -902,7 +658,6 @@ export class ReturnService {
       },
     };
 
-    //console.log(xmlStructure);
     return linkAssetJson;
   }
 
@@ -948,10 +703,6 @@ export class ReturnService {
         },
       };
   
-      //this.logger.logError(`xmlStructure ${xmlStructure}`);
-  
-      //this.logger.logError("DrivertXmlStructure", JSON.stringify(xmlStructure, null, 2));
-
       this.logger.logError("URL Divert", process.env.LINK_DIVERT_URL);
 
       await this.traceService.update(id, JSON.stringify(xmlStructure, null, 2));

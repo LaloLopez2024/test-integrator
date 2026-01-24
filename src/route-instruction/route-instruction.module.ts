@@ -5,7 +5,7 @@ import { TcpService } from 'src/shared/service/tcp-service';
 import { TextService } from 'src/shared/service/text.service';
 import { ApiService } from 'src/shared/service/api.service';
 import { XmlService } from 'src/shared/service/xml.service';
-import { WoaService } from 'src/woa/woa.service';
+import { WoaModule } from 'src/woa/woa.module';
 import { InductionService } from './tinduction.service';
 import { SequenceService } from 'src/woa/secuence.service';
 import { HttpModule } from '@nestjs/axios';
@@ -17,7 +17,6 @@ import { Article } from 'src/article/entities/article.entity';
 import { TWoaResponse } from 'src/return/entities/twoa-response.entity';
 import { SequenceDetailService } from 'src/woa/secuence-detail.service';
 import { RouteService } from 'src/route/route.service';
-import { PrintFileService } from 'src/woa/printFile.service';
 import { LoggerService } from 'src/shared/logger/logger.service';
 import { TSequence } from 'src/woa/entities/tsequence.entity';
 import { TSequenceDetail } from 'src/woa/entities/tsequence-detail.entity';
@@ -33,17 +32,12 @@ import { TcpModule } from 'src/shared/service/tcp/tcp.module';
     RouteInstructionService,
     TcpModule,
     XmlService,
-    WoaService,
     TextService,
     ApiService,
     InductionService,
     SequenceService,
-    WoaService,
-    SequenceService,
     SequenceDetailService,
-    TextService,
     RouteService,
-    PrintFileService,
     AuthService,
     AuthModule,
     ArticleService,
@@ -53,6 +47,7 @@ import { TcpModule } from 'src/shared/service/tcp/tcp.module';
     },
   ],
   imports:[
+      WoaModule,
       HttpModule,
       TypeOrmModule.forFeature([ TInduction, TWoaResponse, Woa, Article, TSequence, Route, TSequenceDetail, User  ])
     ]

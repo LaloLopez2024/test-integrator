@@ -33,8 +33,6 @@ export class RouteService {
    
     if(tramas) {
       try {
-        //this.heartbeatService.disable();
-
         await this.tcpService.sendMessage(0, '00008161', 'ROUTE');
         await this.traceService.create("ROUTE", '00008161', null);
   
@@ -58,43 +56,17 @@ export class RouteService {
       }
       catch(error) {
         this.logger.logError(`Error al procesar trama para enviar a kisoft, error: ${error.message}`, error.stack);
-      } 
-      finally {
-        //this.heartbeatService.enable();
-      }      
+      }  
     }
   }
-
-  /*
-  async onModuleInit() {
-    this.logger.logError(`RUTAS`);
-
-    this.fileTrackerService.dictionary$.subscribe(async (fileList) => {
-      
-      const data = Object.entries(fileList);
-
-      this.logger.logError("data", JSON.stringify(data, null, 2));
-
-      for(const [key, values] of data){
-        if (key.includes('RUTAS')) {
-          this.logger.logError(`PROCESAR ARCHIVOS RUTAS = ${key}`);
-          await this.processFileWMS(values, key);
-        }
-      };
-    });
-  }
-*/
 
   async processFileWMS(data: any[], fileName: string) {
     try
     {
-      //console.log("data", data);
       this.fileTrackerService.removeItem(fileName);
 
       const  createRouteDtoList = this.buildDTOFromDataFile(data);
-      //console.log("createRouteDtoList", createRouteDtoList)
       this.logger.logError(`rutas cantidad = ${createRouteDtoList.length}`);
-      //this.logger.logError("createArticleDtoList", JSON.stringify(createArticleDtoList, null, 2));
 
       var processedData = this.applyBusinessLogic(createRouteDtoList);
 

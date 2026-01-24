@@ -30,28 +30,6 @@ export class ArticleService {
     private readonly logger: LoggerService
   ){}
 
-  /*async onModuleInit() {
-    try
-    {
-      this.fileTrackerService.dictionary$.subscribe(async (fileList) => {
-        //console.log('Diccionario actualizado:', fileList);
-        const data = Object.entries(fileList);
-
-        for(const [key, values] of data){
-          if (key.includes('TPRO')) {
-            console.log("PROCESAR ARCHIVOS TPRO, ", key);
-           //console.log("Values", values);
-            await this.processFileWMS(values, key);
-          }
-        };
-        
-      });
-    }
-    catch(error) {
-      this.logger.logError(`Ocurrió un error al procesar archivo article, error: ${error.message}`, error.stack);
-    }    
-  }*/
-
   async iniciarProceso(tramas: string[]) {
     setImmediate(async () => {
       await this.procesaTramas(tramas);
@@ -62,8 +40,6 @@ export class ArticleService {
    
     if(tramas) {
       try {
-        //this.heartbeatService.disable();
-
         await this.tcpService.sendMessage(0, '00008141', 'ARTICLE');
         await this.traceService.create("ARTICLE", '00008141', null);
   
@@ -87,29 +63,21 @@ export class ArticleService {
       }
       catch(error) {
         this.logger.logError(`Error al procesar trama para enviar a kisoft, error: ${error.message}`, error.stack);
-      } 
-      finally {
-        //this.heartbeatService.enable();
       }
     }
   }
 
   async processFileWMS(data: any[], fileName: string) {
     try {
-      //console.log("INICIO proceso articulos")
-      //console.log("data", data);
-      //this.logger.logError("processFileWMS");
       this.fileTrackerService.removeItem(fileName);
 
       const createArticleDtoList = this.buildDTOFromDataFile(data);
-      //this.logger.logError("op1");
       this.logger.logError("createArticleDtoList", JSON.stringify(createArticleDtoList, null, 2));
 
       console.log("articles cantidad", createArticleDtoList.length);
       if(createArticleDtoList.length > 0) {
         const articleList = await this.saveArticles(createArticleDtoList);
 
-        //this.logger.logError("op2");
         this.logger.logError("createArticleDtoList - saveArticles", JSON.stringify(articleList, null, 2));
   
         const processedData = this.applyBusinessLogic(articleList);
@@ -117,7 +85,6 @@ export class ArticleService {
         console.log("articles cantidad a enviar", processedData.length);
         console.log("processedData", processedData);
         await this.sendToKisoft(processedData);
-        //console.log(`Archivo de articulos procesado ${fileName}`);
       }
 
       this.fileRemoveService.addFile(fileName);
@@ -139,8 +106,6 @@ export class ArticleService {
         const createArticleDtoList: CreateArticleDto[] = [];
         let index = 0;
 
-        //this.logger.logError(`data.length = ${data.length}`);
-
         data.forEach(value => {
 
           const validObj = Object.keys(value);
@@ -149,29 +114,21 @@ export class ArticleService {
             this.logger.logError("ERROR EN FORMATO DE ARCHIVO CSV");
             return [];
           }
-            //this.logger.logError("buildDTOFromDataFile - item", JSON.stringify(item, null, 2)); 
-          //this.logger.logError("value", JSON.stringify(value, null, 2)); 
+
           index = index + 1;
 
           const createArticleDto = new CreateArticleDto();
     
           arcticleConfig.forEach(item => { 
-            /*if(item.field == "Cod_Barra_2") {
-              this.logger.logError("buildDTOFromDataFile - item", JSON.stringify(item, null, 2));
-            }*/
-            //this.logger.logError("buildDTOFromDataFile - item", JSON.stringify(item, null, 2)); 
             const valueItem = value[item.field];
-            //this.logger.logError("buildDTOFromDataFile - valueItem", JSON.stringify(valueItem, null, 2));
             if(valueItem != '' && valueItem != undefined){
               createArticleDto[item.field] = valueItem;
             }          
           });
 
-          //this.logger.logError("createArticleDto - valueItem", JSON.stringify(createArticleDto, null, 2));
           createArticleDtoList.push(createArticleDto);
         });
     
-        //console.log("createArticleDtoList", createArticleDtoList);
         return createArticleDtoList;
       }
       else {
@@ -193,18 +150,13 @@ export class ArticleService {
         try 
         {
           this.logger.logError("saveArticles - dto", JSON.stringify(dto, null, 2));
-          /*if(dto.Mascara == 'AE-402-003-02-03' || dto.Mascara == 'AE-101-014-04-01') {
-            this.logger.logError("saveArticles - dto", JSON.stringify(dto, null, 2));
-          }*/
-  
+
           const article = await this.articleRepository.findOne({ 
             where: { 
               Cod_Barra_Ubicacion: dto.Cod_Barra_Ubicacion,
               Cod_Alt_Producto: dto.Cod_Alt_Producto              
             } 
           });
-  
-          //this.logger.logError(`saveArticles - article`, JSON.stringify(article, null, 2));
   
           if(article != null || article != undefined) {           
             article.Area = dto.Area;
@@ -232,22 +184,12 @@ export class ArticleService {
             await this.articleRepository.save(article);
           }
           else {  
-            //this.logger.logError(`saveArticles - new article - dto`, JSON.stringify(dto, null, 2));
             dto.CreatedDate = new Date();
             dto.CreatedUser = 3
             const articleEntity = this.articleRepository.create(dto);
   
-            //this.logger.logError(`saveArticles - new article articleEntity`, JSON.stringify(articleEntity, null, 2));
             await this.articleRepository.save(articleEntity);
           }
-
-
-          /*const valid14D = await this.articleRepository.findOne({ 
-            where: { 
-              Cod_Barra_Ubicacion: dto.Cod_Barra_Ubicacion,
-              Cod_Alt_Producto: Not(dto.Cod_Alt_Producto)
-            } 
-          });*/
 
           const valid14D = await this.articleRepository
           .createQueryBuilder('article')
@@ -342,8 +284,6 @@ export class ArticleService {
           let valueField = '0';
           
           if(config.field == 'Cod_Barra_Producto_Count') {
-            //this.logger.logError(`config.field= ${config.field}`);
-            //this.logger.logError(`createArticleDto.Cant_Codigos= ${createArticleDto.Cant_Codigos}`);
             if(createArticleDto.Cant_Codigos) {
               valueField = createArticleDto.Cant_Codigos.toString();
             } 
@@ -352,21 +292,7 @@ export class ArticleService {
                 valueField = '1';
               }
             }
-
-            //this.logger.logError(`valueField FILE 46 ${valueField}`);
           }
-          /*else if(config.field == 'Cod_Barra_Producto_Length') {
-            valueField = '0';
-            //this.logger.logError(`config.field= ${config.field}`);
-            //this.logger.logError(`createArticleDto.Cod_Barra_Producto= ${createArticleDto.Cod_Barra_Producto}`);
-
-            if(createArticleDto.Cod_Barra_Producto != undefined) {
-              //valueField = createArticleDto.Cod_Barra_Producto.length.toString();
-              valueField = ((createArticleDto.Cant_Codigos ?? 1) * 20).toString();
-            }
-
-            //this.logger.logError(`valueField= ${valueField}`);
-          }*/
           else {
             const value = this.cleanText(createArticleDto[config.field] ?? '');
             valueField = this.validateLength(value, config.maxLength ?? 0)

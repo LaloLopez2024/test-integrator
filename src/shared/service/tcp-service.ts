@@ -36,19 +36,20 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
   private readonly PORT_FILE = './local-port.txt';
   private localPort: number;
   localPortToReuse: number | null = null;
+  private connectionId = 0;
 
   constructor(private readonly logger: LoggerService,
               private readonly traceService: TraceService
   ) {};
 
   async onModuleInit() {
-    this.logger.logError(`*** onModuleInit ***`);
+    this.logError(`*** onModuleInit ***`);
     this.localPort = await this.loadOrAssignLocalPort();
     this.initSocket();
   }
 
   onModuleDestroy() {
-    this.logger.logError('*** onModuleDestroy ****');
+    this.logError('*** onModuleDestroy ****');
     this.cleanupSocket();
   }
 
@@ -63,7 +64,7 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
       fs.writeFileSync(this.PORT_FILE, port.toString());
       return port;
     } catch (err) {
-      this.logger.logError(`Error asignando puerto local: ${err.message}`);
+      this.logError(`Error asignando puerto local: ${err.message}`);
       throw err;
     }
   }
@@ -72,18 +73,13 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
     this.reconectando = false;
     this.validandoConexion = false;
 
-    /*if (this.initializingSocket) {
-      this.logger.logError('initSocket ya en curso, ignorado');
-      this.reintentosEnvioSinRespuesta = 0;
-      return;
-    }*/
-
     if (this.client && !this.client.destroyed) {
-      this.logger.logError('initSocket - Socket ya existente, no se recrea');
+      this.logError('initSocket - Socket ya existente, no se recrea');
       this.reintentosEnvioSinRespuesta = 0;
       return;
     }
 
+    this.connectionId += 1;
     this.client = new net.Socket();
     this.client.setKeepAlive(true, 10000);
     this.initializingSocket = true;
@@ -95,7 +91,7 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
     };
 
     this.client.connect(options, () => {
-      this.logger.logError(`Connected to TCP server at ${this.host}:${this.port} localPort ${this.client.localPort}`);
+      this.logError(`Connected to TCP server at ${this.host}:${this.port} localPort ${this.client.localPort}`);
 
       if (!this.localPortToReuse) {
         this.localPortToReuse = this.client.localPort;
@@ -108,104 +104,32 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
       this.initConnect();
     });
 
-   /* this.client.connect(this.port, this.host, () => {
-      this.logger.logError(`Connected to TCP server at ${this.host}:${this.port}`);
-      this.conectadoTimestamp = Date.now();
-      this.initConnect();
-    });*/
-
-    /*
-    this.client = net.createConnection({
-      host: this.host,
-      port: this.port,
-      localPort: 30002, // ← Aquí fijas el puerto local
-    }, () => {
-      this.logger.logError(`Connected to TCP server at ${this.host}:${this.port}`);
-      this.conectadoTimestamp = Date.now();
-      this.initConnect();
-    });
-    */
-/*
-    this.checkPortAvailability(this.localPort).then((isAvailable) => {
-      if (isAvailable) {
-        this.client = net.createConnection({
-          host: this.host,
-          port: this.port,
-          localPort: this.localPort,
-        }, () => {
-          this.logger.logError(`Connected to TCP server at ${this.host}:${this.port}`);
-          this.conectadoTimestamp = Date.now();
-          this.initConnect();
-        });
-      } else {
-        this.logger.logError(`Puerto local ${this.localPort} ya está en uso. Intentando liberar...`);
-        this.cleanupSocket();
-        this.initSocket();
-      }
-    }).catch((error) => {
-      this.logger.logError(`Error al verificar el puerto local ${this.localPort}: ${error.message}`);
-    });
-*/
-
     this.client.on('data', async (data) => {
       try {
         this.reintentosHearbeatSinRespuesta = 0;
         const received = data.toString().trim();
-        this.logger.logError(`Received data: ${received}`);
+        this.logError(`Received data: ${received}`);
         await this.processesReceivedData(received);
       } catch (error) {
-        this.logger.logError(`Error en datos recibidos: ${error.message}`, error.stack);
+        this.logError(`Error en datos recibidos: ${error.message}`, error.stack);
       } 
     });
 
     this.client.on('error', (err) => {
-      this.logger.logError(`Connection error: ${err.message}`, err.stack);
+      this.logError(`Connection error: ${err.message}`, err.stack);
       this.isConnected = false;
-      
-
-      /*if(this.disconectReceived == 2) {
-        this.sendHearbetWithDisconect();
-      }*/
       
       this.reconnect();
     });
 
     this.client.on('close', () => {
-      this.logger.logError(`*****CONNECTION CLOSE*****`);
+      this.logError(`*****CONNECTION CLOSE*****`);
       this.validConnection();
-      
-      
-      //this.isConnected = false;
-      /*
-      this.disconectReceived = this.disconectReceived + 1;
-
-      this.logger.logError(`Connection closed - disconectReceived = ${this.disconectReceived}`);
-
-      if(this.disconectReceived == 2) {
-        this.disconectReceived = 0;
-        this.logger.logError(`*** INIT Herbaet with disconect POR EVENTO CLOSE ***`);
-        //this.sendHearbetWithDisconect();
-      }
-        */
-      //this.reconnect();
     });
 
     this.client.on('end', () => {
-      this.logger.logError(`*****CONNECTION CLOSE FROM SERVER*****`);
+      this.logError(`*****CONNECTION CLOSE FROM SERVER*****`);
       this.validConnection();
-      //this.isConnected = false;
-      /*      
-      this.disconectfromServer = this.disconectfromServer + 1;
-
-      this.logger.logError(`Connection closed from server - disconectfromServer = ${this.disconectfromServer}`);
-
-      if(this.disconectfromServer == 2) {
-        this.disconectfromServer = 0;
-        this.logger.logError(`*** INIT Herbaet with disconect POR EVENTO END ***`);
-        this.sendHearbetWithDisconect();
-      }
-        */
-      //this.reconnect();
     });
 
     this.client.setTimeout(0);
@@ -222,10 +146,10 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
       tester.on('error', (err) => {
         if (err) {
           // Aquí puedes acceder a `err.code` de forma segura
-          this.logger.logError(`Connection error: ${err.message}`);
+          this.logError(`Connection error: ${err.message}`);
         } else {
           // Si no existe el código, solo muestra el mensaje
-          this.logger.logError(`Connection error: ${err.message}`);
+          this.logError(`Connection error: ${err.message}`);
         }
       });
     });
@@ -241,8 +165,8 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
     const now = Date.now();
     const timeActual = now - this.conectadoTimestamp;
 
-    this.logger.logError(`close - now = ${now}`);
-    this.logger.logError(`close - timeActual = ${timeActual}`);
+    this.logError(`close - now = ${now}`);
+    this.logError(`close - timeActual = ${timeActual}`);
     
     if(timeActual >= 100000) {
       this.isConnected = false;
@@ -252,15 +176,12 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
 
   async initConnect() {
     try {
-      //this.stopHeartbeatWithDisconect();
-
       if (this.processInterval) {
         clearInterval(this.processInterval);
       }
 
       this.isConnected = true;
       this.startProcess();
-      //this.startHeartbeat();
 
     } finally {
       this.initializingSocket = false;
@@ -269,7 +190,6 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
 
   async processesReceivedData(received: string) {
     try {
-      //this.stopHeartbeatWithDisconect();
       this.reintentosHearbeatSinRespuesta = 0;
       this.reintentosEnvioSinRespuesta = 0;
       this.reintentosHeartbeatDisconect = 0;
@@ -278,11 +198,11 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
       this.isConnected = true;
       
       if(received == '000102HR00') {
-        this.logger.logError(`Se recibió un hearbeat`);
+        this.logError(`Se recibió un hearbeat`);
       }
       else {
-        this.logger.logError(`Received data - currentSending = `, JSON.stringify(this.currentSending, null, 2));
-        this.logger.logError(`Received data - pendingResponses = `, JSON.stringify(this.pendingResponses, null, 2));
+        this.logError(`Received data - currentSending = `, JSON.stringify(this.currentSending, null, 2));
+        this.logError(`Received data - pendingResponses = `, JSON.stringify(this.pendingResponses, null, 2));
   
         if (this.currentSending) {
           const { id } = this.currentSending;
@@ -298,11 +218,11 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
           this.currentSending = null;
         }
         else {
-          this.logger.logError(`No se esperaba la respuesta ${received}`);
+          this.logError(`No se esperaba la respuesta ${received}`);
         }
       }    
     } catch (error) {
-      this.logger.logError(`Error enviando trama: ${error.message}`, error.stack);
+      this.logError(`Error enviando trama: ${error.message}`, error.stack);
     }   
   }
 
@@ -311,7 +231,6 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
       return;
     }
     this.reconectando = true;
-    //this.stopHeartbeatWithDisconect();
     this.reintentosHearbeatSinRespuesta = 0;
     this.reintentosHeartbeatDisconect = 0;
     this.disconectfromServer = 0;
@@ -320,13 +239,13 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
 
     this.cleanupSocket();
 
-    this.logger.logError('***RECONECTANDOSE***');
+    this.logError('***RECONECTANDOSE***');
     setTimeout(() => this.initSocket(), 3000);
   }
 
   async sendMessage(id: number, trama: string, interfaceName: string): Promise<string> {
     return new Promise(async (resolve, reject) => {
-      this.logger.logError(`sendMessage - interface = ${interfaceName} - nueva trama = ${trama}`);
+      this.logError(`sendMessage - interface = ${interfaceName} - nueva trama = ${trama}`);
       this.sendQueue.push({ id, trama, resolve, reject });      
     });
   }
@@ -343,9 +262,9 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
     if (this.processing) return;
     this.processing = true;
 
-    this.logger.logError(`processQueue - isConnected = ${this.isConnected}`);
-    this.logger.logError(`processQueue - currentSending = `, JSON.stringify(this.currentSending, null, 2));
-    this.logger.logError(`processQueue - sendQueue.length = ${this.sendQueue.length}`);
+    this.logError(`processQueue - isConnected = ${this.isConnected}`);
+    this.logError(`processQueue - currentSending = `, JSON.stringify(this.currentSending, null, 2));
+    this.logError(`processQueue - sendQueue.length = ${this.sendQueue.length}`);
 
     try {
       const workData = this.isConnected && 
@@ -353,25 +272,25 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
                       this.sendQueue.length > 0;
 
       if(workData) {
-        this.logger.logError(`processQueue - se inicia el recorrido de tramas a enviar, tramas = `, JSON.stringify(this.sendQueue, null, 2));
+        this.logError(`processQueue - se inicia el recorrido de tramas a enviar, tramas = `, JSON.stringify(this.sendQueue, null, 2));
 
         const item = this.sendQueue[0];
-        this.logger.logError(`processQueue - se enviará la trama`, JSON.stringify(item, null, 2));
+        this.logError(`processQueue - se enviará la trama`, JSON.stringify(item, null, 2));
         await this.processMessage(item);
       }
       else {
-        this.logger.logError(`processQueue - DESCONEXIÓN - aún no se envían tramas = `, JSON.stringify(this.sendQueue, null, 2));
+        this.logError(`processQueue - DESCONEXIÓN - aún no se envían tramas = `, JSON.stringify(this.sendQueue, null, 2));
         this.reintentosEnvioSinRespuesta = this.reintentosEnvioSinRespuesta + 1;
 
-        this.logger.logError(`processQueue - reintentosEnvioSinRespuesta = ${this.reintentosEnvioSinRespuesta}`);
+        this.logError(`processQueue - reintentosEnvioSinRespuesta = ${this.reintentosEnvioSinRespuesta}`);
         if(this.reintentosEnvioSinRespuesta >= 5) {
-          this.logger.logError(`processQueue - RECONEXIÓN = ${this.reintentosEnvioSinRespuesta}`);
+          this.logError(`processQueue - RECONEXIÓN = ${this.reintentosEnvioSinRespuesta}`);
           this.reconnect();
         }
       }
 
     } catch (error) {
-      this.logger.logError(`Error enviando trama: ${error.message}`, error.stack);
+      this.logError(`Error enviando trama: ${error.message}`, error.stack);
     } finally {
       this.processing = false;
     }
@@ -385,13 +304,13 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
 
         if (!this.isSocketAvailable()) {
           this.currentSending = null;
-          this.logger.logError('Socket no disponible o no writable al intentar enviar');
+          this.logError('Socket no disponible o no writable al intentar enviar');
           this.reconnect();
           return;
         }
   
         const timeoutPerMessage = setTimeout(() => {
-          this.logger.logError(`Timeout esperando respuesta para id: ${item.id}`);
+          this.logError(`Timeout esperando respuesta para id: ${item.id}`);
           this.pendingResponses.delete(item.id);
           this.currentSending = null;
           item.resolve?.('TIMEOUT');
@@ -410,51 +329,47 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
           const result = this.sendData(encodedMessage.toString('binary'));    
           
           if(result) {
-            this.logger.logError(`Trama enviada: ${encodedMessage.toString('binary')}`);
+            this.logError(`Trama enviada: ${encodedMessage.toString('binary')}`);
             this.sendQueue.shift();
           }
           
         } catch (error) {
-          this.logger.logError(`Error enviando trama: ${error.message}`, error.stack);
+          this.logError(`Error enviando trama: ${error.message}`, error.stack);
           this.currentSending = null;
         }
-  
-        /*if (this.sendQueue.length > 100) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }*/
       }
     } catch (error) {
-      this.logger.logError(`Error enviando trama: ${error.message}`, error.stack);
+      this.logError(`Error enviando trama: ${error.message}`, error.stack);
     }
   }
 
   private sendData(data: string): boolean {
-    this.logger.logError(`sendData - datos a enviar data = ${data}`);
+    this.logError(`sendData - datos a enviar data = ${data}`);
 
     const flushed = this.client.write(data, (err) => {
       if (err) {
-        this.logger.logError(`sendData - ERROR AL ENVIAR DATOS: ${err.message}`);
+        this.logError(`sendData - ERROR AL ENVIAR DATOS: ${err.message}`);
         this.isConnected = false;
         return false;
       }
-      this.logger.logError(`sendData - datos enviadas`);
+      this.logError(`sendData - datos enviadas`);
     });
 
     if (!flushed) {
       this.client.once('drain', () => {
-        this.logger.logError('Buffer drenado, se completó el write');
+        this.logError('Buffer drenado, se completó el write');
       });
     }
 
-    this.logger.logError(`sendData - datos ENVIADOS CORRECTAMENTE`);
+    this.logError(`sendData - datos ENVIADOS CORRECTAMENTE`);
     return true;
   }
 
   private cleanupSocket() {
-    this.logger.logError('cleanupSocket');
+    this.logError('cleanupSocket');
 
     if (this.client) {
-      this.logger.logError('Cleaning up existing socket connection');
+      this.logError('Cleaning up existing socket connection');
       this.client.removeAllListeners();
       this.client.destroy();
       this.client.unref();
@@ -475,27 +390,27 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
         const now = Date.now();
         const time = now - this.lastHeartbeatTimestamp;
   
-        this.logger.logError(`startHeartbeat - time = ${time}`);
-        this.logger.logError(`startHeartbeat - isConnected = ${this.isConnected}`);
-        this.logger.logError(`startHeartbeat - reconectando = ${this.reconectando}`);
-        this.logger.logError(`startHeartbeat - currentSending = ${this.currentSending}`);
-        this.logger.logError(`startHeartbeat - this.sendQueue.length === 0 = ${this.sendQueue.length === 0}`);
+        this.logError(`startHeartbeat - time = ${time}`);
+        this.logError(`startHeartbeat - isConnected = ${this.isConnected}`);
+        this.logError(`startHeartbeat - reconectando = ${this.reconectando}`);
+        this.logError(`startHeartbeat - currentSending = ${this.currentSending}`);
+        this.logError(`startHeartbeat - this.sendQueue.length === 0 = ${this.sendQueue.length === 0}`);
   
         const timeActual = now - this.lastHeartbeatTimestamp;
-        this.logger.logError(`startHeartbeat - timeActual = ${timeActual}`);
+        this.logError(`startHeartbeat - timeActual = ${timeActual}`);
   
         const shouldSendHeartbeat = !this.currentSending &&
                                   !this.reconectando &&
                                   this.sendQueue.length === 0 &&
                                   timeActual>= 30000;
   
-        this.logger.logError(`startHeartbeat - shouldSendHeartbeat = ${shouldSendHeartbeat}`);
+        this.logError(`startHeartbeat - shouldSendHeartbeat = ${shouldSendHeartbeat}`);
         
         if (shouldSendHeartbeat) {
-          this.logger.logError(`startHeartbeat - se inicia heartbeat`);
+          this.logError(`startHeartbeat - se inicia heartbeat`);
   
           if(this.reintentosHearbeatSinRespuesta >= 5) {
-            this.logger.logError(`startHeartbeat disconect - 5 reintentos - reconexión *** RECONEXIÓN POR HEARBEAT ***`);
+            this.logError(`startHeartbeat disconect - 5 reintentos - reconexión *** RECONEXIÓN POR HEARBEAT ***`);
             this.reconnect();
           }
           
@@ -504,17 +419,17 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
           const sended = this.sendData(encodedMessage.toString('binary'));
   
           if(!sended){
-            this.logger.logError(`startHeartbeat NO SE ENVIÓ HEARBEAT POR QUE NO HAY CONEXIÓN`);
+            this.logError(`startHeartbeat NO SE ENVIÓ HEARBEAT POR QUE NO HAY CONEXIÓN`);
           }
           
-          this.logger.logError(`startHeartbeat reintentosHearbeatSinRespuesta = ${this.reintentosHearbeatSinRespuesta}`);
+          this.logError(`startHeartbeat reintentosHearbeatSinRespuesta = ${this.reintentosHearbeatSinRespuesta}`);
           this.reintentosHearbeatSinRespuesta = this.reintentosHearbeatSinRespuesta + 1;
           this.lastHeartbeatTimestamp = Date.now();
-          this.logger.logError('Heartbeat enviado');
+          this.logError('Heartbeat enviado');
         }
       }
       catch (error) {
-        this.logger.logError(`startHeartbeat - Error en prceso de heartbeat: ${error.message}`, error.stack);
+        this.logError(`startHeartbeat - Error en prceso de heartbeat: ${error.message}`, error.stack);
       }
     }, 1000);
   }
@@ -535,22 +450,22 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
       const now = Date.now();
       const time = this.lastHeartbeatDisconect > 0 ? now - this.lastHeartbeatDisconect : 0;
 
-      this.logger.logError(`sendHearbetWithDisconect - time = ${time}`);
-      this.logger.logError(`sendHearbetWithDisconect - lastHeartbeatDisconect = ${this.lastHeartbeatDisconect}`);
+      this.logError(`sendHearbetWithDisconect - time = ${time}`);
+      this.logError(`sendHearbetWithDisconect - lastHeartbeatDisconect = ${this.lastHeartbeatDisconect}`);
 
       const shouldSendHeartbeat = !this.isConnected &&
                                   now - this.lastHeartbeatTimestamp >= 30000;
 
       const tiempoTranscurrido = now - this.lastHeartbeatTimestamp;
-      this.logger.logError(`sendHearbetWithDisconect tiempoTranscurrido = ${tiempoTranscurrido}`);
-      this.logger.logError(`sendHearbetWithDisconect shouldSendHeartbeat = ${shouldSendHeartbeat}`);
+      this.logError(`sendHearbetWithDisconect tiempoTranscurrido = ${tiempoTranscurrido}`);
+      this.logError(`sendHearbetWithDisconect shouldSendHeartbeat = ${shouldSendHeartbeat}`);
 
       if (shouldSendHeartbeat) {
-        this.logger.logError(`sendHearbetWithDisconect disconect - se inicia heartbeat`);
+        this.logError(`sendHearbetWithDisconect disconect - se inicia heartbeat`);
 
         if(this.reintentosHeartbeatDisconect >= 3) {
           this.isConnected = false;
-          this.logger.logError(`sendHearbetWithDisconect disconect - 3 reintentos - *** RECONEXIÓN POR HEARBEAT WITH DISCONECT ***`);
+          this.logError(`sendHearbetWithDisconect disconect - 3 reintentos - *** RECONEXIÓN POR HEARBEAT WITH DISCONECT ***`);
           this.reconnect();
         }
         
@@ -559,8 +474,8 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
         const sended = this.sendData(encodedMessage.toString('binary'));        
         
         this.lastHeartbeatDisconect = Date.now();
-        this.logger.logError('sendHearbetWithDisconect disconect enviado');
-        this.logger.logError(`sendHearbetWithDisconect reintentosHeartbeatDisconect = ${this.reintentosHeartbeatDisconect}`);
+        this.logError('sendHearbetWithDisconect disconect enviado');
+        this.logError(`sendHearbetWithDisconect reintentosHeartbeatDisconect = ${this.reintentosHeartbeatDisconect}`);
         this.reintentosHeartbeatDisconect = this.reintentosHeartbeatDisconect + 1;
       }
     }, 1000);
@@ -571,6 +486,15 @@ export class TcpService implements OnModuleInit, OnModuleDestroy  {
       clearInterval(this.heartbeatDisconect);
       this.heartbeatDisconect = null;
     }
+  }
+
+  private getLogContext(): string {
+    const currentId = this.currentSending ? this.currentSending.id : 'none';
+    return `connectionId=${this.connectionId} queueSize=${this.sendQueue.length} currentSendingId=${currentId}`;
+  }
+
+  private logError(message: string, ...optionalParams: any[]) {
+    this.logger.logError(`${message} | ${this.getLogContext()}`, ...optionalParams);
   }
 
   private isSocketAvailable(): boolean {

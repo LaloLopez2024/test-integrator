@@ -32,7 +32,7 @@ import { PartnerModule } from './partner/partner.module';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       autoLoadEntities: true,
-      synchronize: true,
+      synchronize: process.env.NODE_ENV !== 'production',
       extra: {
         max: 10,
         idleTimeoutMillis: 30000,

@@ -13,7 +13,7 @@ export class SftpPrintService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     this.logger.logError("Inicio de SftpPrintService");
 
-    //await this.connectToSftp();
+    await this.connectToSftp();
   }
 
   async onModuleDestroy() {
@@ -89,20 +89,4 @@ export class SftpPrintService implements OnModuleInit, OnModuleDestroy {
 
     return 'Error desconocido al subir archivo al SFTP Print.';
   }
-
-  /*
-  async uploadFile(
-    remotePath: string,
-    localPath: string,
-  ): Promise<string> {
-    try {
-
-      await this.client.put(localPath, remotePath);
-
-      return 'Archivo subido exitosamente al SFTP Print.';
-    } catch (error) {
-      this.logger.logError(`Error al subir el archivo en SFTP Print- ${error.message}`, error.stack);
-    }
-  }
-    */
 }

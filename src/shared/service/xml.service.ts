@@ -104,35 +104,6 @@ constructor(private readonly logger: LoggerService){}
     }
   }
 
-  /*public async sendSoapRequestByForm(xmlObject: any, wsdlUrl: string, traceId: number): Promise<any> {
-    try {
-      const builder = new xml2js.Builder({ headless: true });
-      const xml = builder.buildObject(xmlObject);
-      const xmlClean = xml.replace(/\n/g, '').trim();
-
-      this.logger.logError("xml", xmlClean);
-
-      const formData = new URLSearchParams();
-      formData.append('xml_data', xmlClean);
-
-      const response = await axios.post(wsdlUrl, formData.toString(), {
-        headers: {
-              'Authorization': `Basic ${Buffer.from(`${process.env.API_WMS_USER}:${process.env.API_WMS_PASSWORD}`).toString('base64')}`,
-              'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
-
-      //const jsonResponse = await xml2jsparseStringPromise(response.data);
-
-      //this.logger.logError(`xml service response, URL=${wsdlUrl}`, response.data.trim());
-
-      return response.data;
-    } catch (error) {
-      this.logger.logError(`Error sending SOAP request - url:${wsdlUrl} - traceId:${traceId} - error:`, error);
-      throw error;
-    }
-  }*/
-
   public async sendSoapRequestByForm(
     xmlObject: any,
     wsdlUrl: string,

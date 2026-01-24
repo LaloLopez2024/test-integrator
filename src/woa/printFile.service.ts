@@ -9,11 +9,12 @@ import { SftpPrintService } from "src/shared/service/sftp-print-service";
 import { TextService } from "src/shared/service/text.service";
 import { SequenceService } from "./secuence.service";
 import { SequenceDetailService } from "./secuence-detail.service";
+import { WoaCalculationService } from "./woa-calculation.service";
+import { WoaConfig } from "./config/woa-config";
 
 
 @Injectable()
 export class PrintFileService {
-    //private readonly printFileDirectory = path.resolve(__dirname, `../${process.env.DIRECTORY_PRINT_FILES}`);
     private readonly printFileDirectory = process.env.DIRECTORY_PRINT_FILES;
     
     constructor(private readonly apiService: ApiService,
@@ -22,6 +23,7 @@ export class PrintFileService {
                 private readonly textService: TextService,
                 private readonly sequenceService: SequenceService,
                 private readonly sequenceDetailService: SequenceDetailService,
+                private readonly woaCalculationService: WoaCalculationService,
     ){}
     
     async generatePrintFile(data: CreateWoaDto[]) {
@@ -34,9 +36,6 @@ export class PrintFileService {
           this.logger.logError(`generatePrintFile - action_code = ${dto.action_code} - oblpn= ${dto.oblpn} - ob_lpn_type = ${dto.ob_lpn_type}`);
           
           var resultValidateEstaction152 = await this.validateEstacion152(dto, data);
-
-          this.logger.logError(`dto.action_code: ${dto.action_code}`);
-          this.logger.logError(`dto.oblpn: ${dto.oblpn}`);
           this.logger.logError(`oblpn:${dto.oblpn} - resultValidateEstaction152: ${resultValidateEstaction152}`);
           
           if (dto.action_code === 'CREATE' && !this.validateNullString(dto.oblpn) && resultValidateEstaction152) {
@@ -76,11 +75,10 @@ export class PrintFileService {
       {
         this.logger.logError(`validateEstacion152 - oblpn:${dto.oblpn} - ob_lpn_type:${dto.ob_lpn_type}`);
         if(dto.ob_lpn_type === '06') {          
-          const sumaVolumenLinea = this.getSumaVolumenLinea(data, dto.oblpn);
+          const sumaVolumenLinea = this.woaCalculationService.getSumaVolumenLinea(data, dto.oblpn);
           this.logger.logError(`validateEstacion152 - oblpn:${dto.oblpn} - sumaVolumenLinea = ${sumaVolumenLinea}`);
-          //this.logger.logError(`validateEstacion152 - sequenceDetailService = ${JSON.stringify(sequenceDetailService, null, 2)}`);
 
-          if(sumaVolumenLinea > 18000) {
+          if(sumaVolumenLinea > WoaConfig.VOLUMEN_LINEA_THRESHOLD) {
             const sequenceDetailService = await this.sequenceDetailService.findByObLpnType(dto.ob_lpn_type);
             this.logger.logError(`validateEstacion152 - oblpn:${dto.oblpn} - sequenceDetailService = ${JSON.stringify(sequenceDetailService, null, 2)}`);
             const sequence = await this.sequenceService.findById(sequenceDetailService.sequenceId);
@@ -108,11 +106,9 @@ export class PrintFileService {
             Authorization: `Basic ${Buffer.from(`${process.env.API_WMS_USER}:${process.env.API_WMS_PASSWORD}`).toString('base64')}`
           };
 
-        //const url = `${process.env.SHIPPING_URL}?label_designer_code=${label_designer_code}&facility_id__code=${facility_id__code}&company_id__code=${company_id__code}&container_nbr__in=${container_nbr__in}`;
         const url = `${process.env.SHIPPING_URL}?label_designer_code=${encodeURIComponent(label_designer_code)}&facility_id__code=${encodeURIComponent(facility_id__code)}&company_id__code=${encodeURIComponent(company_id__code)}&container_nbr__in=${encodeURIComponent(container_nbr__in)}`;
         this.logger.logError(`URL SHIPPING: ${url}`);
         const response = await this.apiService.requestWithRetriesTime('GET', url, { headers : headers }, data_count > 200);
-        //const response = await this.apiService.request('GET', url, { headers : headers } );        
 
         if(response) {
           this.logger.logError(`getDataShipping response = ${JSON.stringify(response, null, 2)}`);
@@ -158,7 +154,7 @@ export class PrintFileService {
 
         const remotePrintFilePath = path.join(process.env.SFTP_PRINT_PATH_FILES, fileName);
 
-        //await this.sftpService.uploadFile(remotePrintFilePath, filePath);
+        await this.sftpService.uploadFile(remotePrintFilePath, filePath);
 
         const fileNameEnd = `${oblpn}.01.008.000.end`;
         const filePathEnd = path.join(this.printFileDirectory, fileNameEnd);
@@ -168,7 +164,7 @@ export class PrintFileService {
 
         const remotePrintFileEndPath = path.join(process.env.SFTP_PRINT_PATH_FILES, fileNameEnd);
         
-        //await this.sftpService.uploadFile(remotePrintFileEndPath, filePathEnd);
+        await this.sftpService.uploadFile(remotePrintFileEndPath, filePathEnd);
     }
 
     private async createAndAppendFile(filePath: string, content: string): Promise<void> {
@@ -185,13 +181,5 @@ export class PrintFileService {
 
     validateNullString(text: string | undefined) {
       return text === undefined || (typeof text === 'string' && text.replace(/^\s+/, '').length == 0);
-    }
-
-    getSumaVolumenLinea(data: CreateWoaDto[], oblpn: string) {
-      const volumenLineas = data.filter(woa => woa.oblpn === oblpn && woa.volumen_linea != null).map(woa => woa.volumen_linea);
-  
-      return volumenLineas.reduce((acc, item) => {
-        return acc + (item != null && typeof item === 'number' ? item : 0);
-      }, 0);
     }
 }

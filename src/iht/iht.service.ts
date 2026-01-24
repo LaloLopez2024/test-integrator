@@ -229,13 +229,6 @@ export class IhtService {
 
               this.logger.logError(`procesaGrupo - group_nbr = ${dto.group_nbr} - nbrWithCode29 = ${JSON.stringify(nbrWithCode29, null, 2)}`);
 
-              /*if(nbrWithCode4 && nbrWithCode4.location.toUpperCase().startsWith('AE')) {
-                groupValidSet.add(dto.group_nbr);
-              }
-              else {
-                this.logger.logError(`procesaGrupo - NO CUMPLE REGLA - group_nbr = ${dto.group_nbr} - location = ${nbrWithCode4.location} no inicia on AE`);
-              }*/
-
               if (nbrWithCode4 && nbrWithCode4?.location) {
                 const loc = nbrWithCode4.location.toUpperCase().trim();
 
@@ -250,9 +243,6 @@ export class IhtService {
                 this.logger.logError(`procesaGrupo - no se envía trama a kisoft del grupo: ${dto.group_nbr} porque no tiene el campo el activity_code = 4 o no tiene el campo location`);
               }
 
-
-              //this.logger.logError(`procesaGrupo - group_nbr = ${dto.group_nbr} - groupValidSet = ${JSON.stringify(groupValidSet, null, 2)}`);
-        
               if(groupValidSet.has(dto.group_nbr)) {
                 
                 if((nbrWithCode2 || nbrWithCode17) && nbrWithCode4) {                
