@@ -18,7 +18,7 @@ import { ArticleService } from 'src/article/article.service';
 import * as csvParse from 'csv-parse/sync';
 import { Article } from 'src/article/entities/article.entity';
 import { WoaCalculationService } from './woa-calculation.service';
-import { WoaConfig } from './config/woa-config';
+import { WoaConfigService } from './config/woa-config.service';
 
 @Injectable()
 export class WoaService {
@@ -35,7 +35,8 @@ constructor(
   private readonly printFileService: PrintFileService,
   private readonly traceService: TraceService,
   private readonly articleService: ArticleService,
-  private readonly woaCalculationService: WoaCalculationService
+  private readonly woaCalculationService: WoaCalculationService,
+  private readonly woaConfigService: WoaConfigService
 ){}
 
   async iniciarProceso(trama: string) {
@@ -391,7 +392,8 @@ constructor(
               if(ob_lpn_type_station_allow.includes(createWoaDto.ob_lpn_type)) {
                 const volumenLinea = this.woaCalculationService.getSumaVolumenLinea(data, createWoaDto.oblpn);
                 const sumaVolumenLinea = createWoaDto.ob_lpn_type === '06' ? volumenLinea : 0;
-                const secuenceTrama = await this.getSeccionesConcatenadas(ob_lpn_type_kisoft, createWoaDto, sequenceDetailService.sequenceId, sumaVolumenLinea > WoaConfig.VOLUMEN_LINEA_THRESHOLD);
+                const threshold = this.woaConfigService.getVolumenLineaThreshold();
+                const secuenceTrama = await this.getSeccionesConcatenadas(ob_lpn_type_kisoft, createWoaDto, sequenceDetailService.sequenceId, sumaVolumenLinea > threshold);
                 partsTrama.push(secuenceTrama);
               }
               break;

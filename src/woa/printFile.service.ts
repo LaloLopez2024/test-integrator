@@ -10,7 +10,7 @@ import { TextService } from "src/shared/service/text.service";
 import { SequenceService } from "./secuence.service";
 import { SequenceDetailService } from "./secuence-detail.service";
 import { WoaCalculationService } from "./woa-calculation.service";
-import { WoaConfig } from "./config/woa-config";
+import { WoaConfigService } from "./config/woa-config.service";
 
 
 @Injectable()
@@ -24,6 +24,7 @@ export class PrintFileService {
                 private readonly sequenceService: SequenceService,
                 private readonly sequenceDetailService: SequenceDetailService,
                 private readonly woaCalculationService: WoaCalculationService,
+                private readonly woaConfigService: WoaConfigService,
     ){}
     
     async generatePrintFile(data: CreateWoaDto[]) {
@@ -78,7 +79,8 @@ export class PrintFileService {
           const sumaVolumenLinea = this.woaCalculationService.getSumaVolumenLinea(data, dto.oblpn);
           this.logger.logError(`validateEstacion152 - oblpn:${dto.oblpn} - sumaVolumenLinea = ${sumaVolumenLinea}`);
 
-          if(sumaVolumenLinea > WoaConfig.VOLUMEN_LINEA_THRESHOLD) {
+          const threshold = this.woaConfigService.getVolumenLineaThreshold();
+          if(sumaVolumenLinea > threshold) {
             const sequenceDetailService = await this.sequenceDetailService.findByObLpnType(dto.ob_lpn_type);
             this.logger.logError(`validateEstacion152 - oblpn:${dto.oblpn} - sequenceDetailService = ${JSON.stringify(sequenceDetailService, null, 2)}`);
             const sequence = await this.sequenceService.findById(sequenceDetailService.sequenceId);
