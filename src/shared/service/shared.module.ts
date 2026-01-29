@@ -14,12 +14,14 @@ import { HttpModule } from '@nestjs/axios';
 import { SftpPrintService } from './sftp-print-service';
 import { HeartbeatService } from './heartbeat.service';
 import { TcpModule } from './tcp/tcp.module';
+import { SystemParameter } from '../entities/system-parameter.entity';
+import { SystemParameterService } from './system-parameter.service';
 
 @Global()
 @Module({
   imports: [
     HttpModule,
-    TypeOrmModule.forFeature([ Trace ]),
+    TypeOrmModule.forFeature([ Trace, SystemParameter ]),
   ],
   providers: [
     SftpPrintService,
@@ -32,6 +34,7 @@ import { TcpModule } from './tcp/tcp.module';
     //TcpListenerService,
     Trama32RTrackerService,
     ApiService,
+    SystemParameterService,
     {
       provide: LoggerService,
       useFactory: () => new LoggerService('SHARED'),
@@ -49,6 +52,7 @@ import { TcpModule } from './tcp/tcp.module';
     Trama32RTrackerService,
     HttpModule,
     ApiService,
+    SystemParameterService,
   ],
 })
 export class SharedModule {}

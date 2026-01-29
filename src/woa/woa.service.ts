@@ -18,7 +18,7 @@ import { ArticleService } from 'src/article/article.service';
 import * as csvParse from 'csv-parse/sync';
 import { Article } from 'src/article/entities/article.entity';
 import { WoaCalculationService } from './woa-calculation.service';
-import { WoaConfig } from './config/woa-config';
+import { WoaConfigService } from './config/woa-config.service';
 
 @Injectable()
 export class WoaService {
@@ -35,7 +35,8 @@ constructor(
   private readonly printFileService: PrintFileService,
   private readonly traceService: TraceService,
   private readonly articleService: ArticleService,
-  private readonly woaCalculationService: WoaCalculationService
+  private readonly woaCalculationService: WoaCalculationService,
+  private readonly woaConfigService: WoaConfigService
 ){}
 
   async iniciarProceso(trama: string) {
@@ -389,9 +390,7 @@ constructor(
               const ob_lpn_type_station_allow: string[] = [ '02', '04', '05', '06', '07', '08', '11' ];
 
               if(ob_lpn_type_station_allow.includes(createWoaDto.ob_lpn_type)) {
-                const volumenLinea = this.woaCalculationService.getSumaVolumenLinea(data, createWoaDto.oblpn);
-                const sumaVolumenLinea = createWoaDto.ob_lpn_type === '06' ? volumenLinea : 0;
-                const secuenceTrama = await this.getSeccionesConcatenadas(ob_lpn_type_kisoft, createWoaDto, sequenceDetailService.sequenceId, sumaVolumenLinea > WoaConfig.VOLUMEN_LINEA_THRESHOLD);
+                const secuenceTrama = await this.getSeccionesConcatenadas(ob_lpn_type_kisoft, createWoaDto, sequenceDetailService.sequenceId);
                 partsTrama.push(secuenceTrama);
               }
               break;
@@ -442,7 +441,7 @@ constructor(
   }
 
 
-  async getSeccionesConcatenadas(oblpnTypeKisoft: string, woa: CreateWoaDto, sequenceId: number, flgVolumenLinea: boolean) : Promise<string> {
+  async getSeccionesConcatenadas(oblpnTypeKisoft: string, woa: CreateWoaDto, sequenceId: number) : Promise<string> {
     const sequenceTrama: string[] = [];
     const sequence = await this.sequenceService.findById(sequenceId);
     let cantSections = 0;
@@ -457,13 +456,22 @@ constructor(
       let sec4 = sequence.SEC4 ? sequence.SEC4.replace(/\s+/g, '') : '';
       const sec5 = sequence.SEC5 ? sequence.SEC5.replace(/\s+/g, '') : '';
 
-      // Si volumen > VOLUMEN_LINEA_THRESHOLD y es PAR, eliminar SEC1
-      if(flgVolumenLinea && Number(woa.oblpn) % 2 == 0) {
+      // Obtener los tipos configurados
+      const configuredObLpnTypes = await this.woaConfigService.getObLpnTypes();
+      const isConfiguredType = configuredObLpnTypes.includes(woa.ob_lpn_type);
+
+      // Eliminar SEC1 solo si:
+      // - ob_lpn_type está en los tipos configurados
+      // - volumen > VOLUMEN_LINEA_THRESHOLD y es el porcentaje que no se enviará (envioChequeo = false)
+      // Cuando volumen <= threshold, siempre incluir SEC1 (independiente de envioChequeo)
+      if (isConfiguredType && woa.volumenOverLimit && !woa.envioChequeo) {
         sec1 = '';
       }
 
-      // Si volumen <= VOLUMEN_LINEA_THRESHOLD, eliminar SEC3 y SEC4
-      if(!flgVolumenLinea) {
+      // Eliminar SEC3 Y SEC4 solo si:
+      // - ob_lpn_type está en los tipos configurados
+      // - volumen <= VOLUMEN_LINEA_THRESHOLD
+      if (isConfiguredType && !woa.volumenOverLimit) {
         sec3 = '';
         sec4 = '';
       }
@@ -554,11 +562,80 @@ constructor(
     }
   }
 
+  /**
+   * Calcula volumenOverLimit y envioChequeo para objetos con ob_lpn_type configurados
+   * @param dataProcessed Array de objetos procesados sin duplicados
+   * @param data Array completo de datos originales
+   */
+  private async calculateVolumenOverLimitAndEnvioChequeo(
+    dataProcessed: CreateWoaDto[],
+    data: CreateWoaDto[]
+  ): Promise<void> {
+    // Obtener los tipos de ob_lpn_type configurados desde la tabla de parámetros del sistema
+    const configuredObLpnTypes = await this.woaConfigService.getObLpnTypes();
+    
+    // Buscar un objeto con alguno de los tipos configurados
+    const dtoWithConfiguredType = dataProcessed.find(dto => 
+      configuredObLpnTypes.includes(dto.ob_lpn_type)
+    );
+    
+    if (!dtoWithConfiguredType) {
+      return;
+    }
+
+    const obLpnType = dtoWithConfiguredType.ob_lpn_type;
+    
+    // Obtener la secuencia para el ob_lpn_type encontrado y su percentage
+    const sequenceDetail = await this.sequenceDetailService.findByObLpnType(obLpnType);
+    const sequence = sequenceDetail 
+      ? await this.sequenceService.findById(sequenceDetail.sequenceId)
+      : null;
+    const percentage = sequence?.percentage ?? 100;
+
+    // Usar un Set para evitar calcular volumenOverLimit duplicado para el mismo oblpn
+    const processedOblpns = new Set<string>();
+
+    // Obtener el umbral desde la tabla de parámetros del sistema
+    const threshold = await this.woaConfigService.getVolumenLineaThreshold();
+
+    // Calcular volumenOverLimit para cada oblpn único (solo para tipos configurados)
+    for (const dto of dataProcessed) {
+      if (configuredObLpnTypes.includes(dto.ob_lpn_type) && dto.oblpn) {
+        if (!processedOblpns.has(dto.oblpn)) {
+          const volumenLinea = this.woaCalculationService.getSumaVolumenLinea(data, dto.oblpn);
+          const volumenOverLimit = volumenLinea > threshold;
+          
+          // Asignar volumenOverLimit a todos los objetos con el mismo oblpn
+          for (const item of dataProcessed) {
+            if (item.oblpn === dto.oblpn) {
+              item.volumenOverLimit = volumenOverLimit;
+            }
+          }
+          
+          processedOblpns.add(dto.oblpn);
+        }
+      }
+    }
+
+    // Marcar aleatoriamente el porcentaje del TOTAL de objetos con envioChequeo = true
+    const totalObjects = dataProcessed.length;
+    const countToMark = Math.floor((totalObjects * percentage) / 100);
+    
+    // Mezclar aleatoriamente todos los objetos y marcar los primeros N
+    const shuffled = [...dataProcessed].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < countToMark && i < shuffled.length; i++) {
+      shuffled[i].envioChequeo = true;
+    }
+  }
+
   private async sendToKisoft(data: CreateWoaDto[]){
     try
     {
       if(data) {
         const dataProcessed = this.removeDuplicates(data);
+
+        // Calcular volumenOverLimit y envioChequeo para los ob_lpn_type configurados
+        await this.calculateVolumenOverLimitAndEnvioChequeo(dataProcessed, data);
 
         for(const dto of dataProcessed) {
           try {

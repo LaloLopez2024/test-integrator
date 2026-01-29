@@ -540,4 +540,10 @@ export class CreateWoaDto {
 
     @IsOptional()
     ModifiedUser?: number;
+
+    @IsOptional()
+    volumenOverLimit?: boolean;
+
+    @IsOptional()
+    envioChequeo?: boolean;
 }
