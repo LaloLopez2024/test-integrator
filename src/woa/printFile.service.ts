@@ -162,7 +162,7 @@ export class PrintFileService {
 
         const remotePrintFilePath = path.join(process.env.SFTP_PRINT_PATH_FILES, fileName);
 
-        //await this.sftpService.uploadFile(remotePrintFilePath, filePath);
+        await this.sftpService.uploadFile(remotePrintFilePath, filePath);
 
         const fileNameEnd = `${oblpn}.01.008.000.end`;
         const filePathEnd = path.join(this.printFileDirectory, fileNameEnd);
@@ -172,7 +172,7 @@ export class PrintFileService {
 
         const remotePrintFileEndPath = path.join(process.env.SFTP_PRINT_PATH_FILES, fileNameEnd);
         
-        //await this.sftpService.uploadFile(remotePrintFileEndPath, filePathEnd);
+        await this.sftpService.uploadFile(remotePrintFileEndPath, filePathEnd);
     }
 
     private async createAndAppendFile(filePath: string, content: string): Promise<void> {
