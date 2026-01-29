@@ -23,6 +23,7 @@ import { Trace } from 'src/trace/entities/trace.entity';
 import { SharedModule } from 'src/shared/service/shared.module';
 import { ProcessFilesService } from './process-files.service';
 import { WoaCalculationService } from './woa-calculation.service';
+import { WoaConfigService } from './config/woa-config.service';
 
 @Module({
   controllers: [WoaController],
@@ -40,6 +41,7 @@ import { WoaCalculationService } from './woa-calculation.service';
     PrintFileService,
     ProcessFilesService,
     WoaCalculationService,
+    WoaConfigService,
     {
       provide: LoggerService,
       useFactory: () => new LoggerService('WOA'),
