@@ -35,10 +35,10 @@ export class PrintFileService {
         for (const dto of data) {
           this.logger.logError(`generatePrintFile - action_code = ${dto.action_code} - oblpn= ${dto.oblpn} - ob_lpn_type = ${dto.ob_lpn_type}`);
           
-          var resultValidateEstaction152 = await this.validateEstacion152(dto, data);
-          this.logger.logError(`oblpn:${dto.oblpn} - resultValidateEstaction152: ${resultValidateEstaction152}`);
+          //var resultValidateEstaction152 = await this.validateEstacion152(dto, data);
+          //this.logger.logError(`oblpn:${dto.oblpn} - resultValidateEstaction152: ${resultValidateEstaction152}`);
           
-          if (dto.action_code === 'CREATE' && !this.validateNullString(dto.oblpn) && resultValidateEstaction152) {
+          if (dto.action_code === 'CREATE' && !this.validateNullString(dto.oblpn)) {
             this.logger.logError(`generatePrintFile - oblpn= ${dto.oblpn} agregado`);
             oblpnList.push(dto.oblpn);
           }
@@ -74,6 +74,7 @@ export class PrintFileService {
       try
       {
         this.logger.logError(`validateEstacion152 - oblpn:${dto.oblpn} - ob_lpn_type:${dto.ob_lpn_type}`);
+
         if(dto.ob_lpn_type === '06') {          
           const sumaVolumenLinea = this.woaCalculationService.getSumaVolumenLinea(data, dto.oblpn);
           this.logger.logError(`validateEstacion152 - oblpn:${dto.oblpn} - sumaVolumenLinea = ${sumaVolumenLinea}`);
@@ -85,8 +86,10 @@ export class PrintFileService {
             this.logger.logError(`validateEstacion152 - oblpn:${dto.oblpn} - sequence = ${JSON.stringify(sequence, null, 2)}`);
             return sequence.SEC3 === '152';
           }
+          return false;
         }
-        return false;
+        else
+          return true;
       }
       catch(error) {
         this.logger.logError(`validateEstacion152 - Error al obtener la secuencia, error: ${error.message}`, error.stack);
@@ -154,7 +157,7 @@ export class PrintFileService {
 
         const remotePrintFilePath = path.join(process.env.SFTP_PRINT_PATH_FILES, fileName);
 
-        await this.sftpService.uploadFile(remotePrintFilePath, filePath);
+        //await this.sftpService.uploadFile(remotePrintFilePath, filePath);
 
         const fileNameEnd = `${oblpn}.01.008.000.end`;
         const filePathEnd = path.join(this.printFileDirectory, fileNameEnd);
@@ -164,7 +167,7 @@ export class PrintFileService {
 
         const remotePrintFileEndPath = path.join(process.env.SFTP_PRINT_PATH_FILES, fileNameEnd);
         
-        await this.sftpService.uploadFile(remotePrintFileEndPath, filePathEnd);
+        //await this.sftpService.uploadFile(remotePrintFileEndPath, filePathEnd);
     }
 
     private async createAndAppendFile(filePath: string, content: string): Promise<void> {
