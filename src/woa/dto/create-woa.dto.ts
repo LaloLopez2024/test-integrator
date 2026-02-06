@@ -542,8 +542,5 @@ export class CreateWoaDto {
     ModifiedUser?: number;
 
     @IsOptional()
-    volumenOverLimit?: boolean;
-
-    @IsOptional()
-    envioChequeo?: boolean;
+    flg_print?: boolean;
 }

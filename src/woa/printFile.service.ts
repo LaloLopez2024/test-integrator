@@ -28,20 +28,31 @@ export class PrintFileService {
     ){}
     
     async generatePrintFile(data: CreateWoaDto[]) {
+      if (!data || data.length === 0) {
+        this.logger.logError(`generatePrintFile - No se recibieron datos para procesar`);
+        return;
+      }
+
+      if (!data[0] || !data[0].facility_code) {
+        this.logger.logError(`generatePrintFile - Error: facility_code no está disponible en los datos recibidos`);
+        return;
+      }
+
       const facilityCode = data[0].facility_code;
       const oblpnList:string[] = [];
       
       try
       {
         for (const dto of data) {
-          this.logger.logError(`generatePrintFile - action_code = ${dto.action_code} - oblpn= ${dto.oblpn} - ob_lpn_type = ${dto.ob_lpn_type}`);
-          
-          //var resultValidateEstaction152 = await this.validateEstacion152(dto, data);
-          //this.logger.logError(`oblpn:${dto.oblpn} - resultValidateEstaction152: ${resultValidateEstaction152}`);
+          this.logger.logError(`generatePrintFile - action_code = ${dto.action_code} - oblpn= ${dto.oblpn} - ob_lpn_type = ${dto.ob_lpn_type} - flg_print = ${dto.flg_print}`);
           
           if (dto.action_code === 'CREATE' && !this.validateNullString(dto.oblpn)) {
-            this.logger.logError(`generatePrintFile - oblpn= ${dto.oblpn} agregado`);
-            oblpnList.push(dto.oblpn);
+            if (dto.flg_print === true) {
+              this.logger.logError(`generatePrintFile - oblpn= ${dto.oblpn} agregado (flg_print=true)`);
+              oblpnList.push(dto.oblpn);
+            } else {
+              this.logger.logError(`generatePrintFile - oblpn= ${dto.oblpn} NO agregado (flg_print=false o undefined)`);
+            }
           }
         }
         this.logger.logError(`generatePrintFile - oblpnList = ${JSON.stringify(oblpnList, null, 2)}`);
@@ -62,7 +73,7 @@ export class PrintFileService {
             const cartones = chunk.join(',');
             this.logger.logError(`generatePrintFile - cartones = ${cartones}`);
 
-            await this.getDataShipping('Etiq_Env_Kisoft_V2', facilityCode, 'BOFASA', cartones, uniqueArray.length);
+            await this.getDataShipping('Etiq_Env_Kisoft_V2', facilityCode, 'BOFASA', cartones, uniqueArray.length, chunk);
           }
         }
       }
@@ -101,7 +112,7 @@ export class PrintFileService {
       }      
     }
 
-    async getDataShipping(label_designer_code: string, facility_id__code: string, company_id__code: string, container_nbr__in: string, data_count: number) {
+    async getDataShipping(label_designer_code: string, facility_id__code: string, company_id__code: string, container_nbr__in: string, data_count: number, requestedOblpns: string[] = []) {
       try
       {
         this.logger.logError(`getDataShipping label_designer_code = ${label_designer_code}`);
@@ -124,13 +135,31 @@ export class PrintFileService {
           const data = this.mapResponse(response);
           this.logger.logError(`getDataShipping data = ${JSON.stringify(data, null, 2)}`);
 
+          // Track which OBLPNs were found in the response
+          const foundOblpns = new Set<string>();
           for(const shipping of data){
+            foundOblpns.add(shipping.id);
             await this.savePrintAndUploadFile(shipping.id, shipping.value);
           }
+
+          // Log OBLPNs that were requested but not found in the response
+          if (requestedOblpns && requestedOblpns.length > 0) {
+            const missingOblpns = requestedOblpns.filter(oblpn => !foundOblpns.has(oblpn));
+            if (missingOblpns.length > 0) {
+              this.logger.logError(`getDataShipping - OBLPNs solicitados pero no encontrados en la respuesta de la API: ${JSON.stringify(missingOblpns, null, 2)}`);
+            } else {
+              this.logger.logError(`getDataShipping - Todos los OBLPNs solicitados fueron encontrados en la respuesta de la API`);
+            }
+          }
+        } else {
+          this.logger.logError(`getDataShipping - La respuesta de la API está vacía o es null. OBLPNs solicitados: ${JSON.stringify(requestedOblpns, null, 2)}`);
         }
       }
       catch(error) {
         this.logger.logError(`Error al generar archivo de impresión, error: ${error.message}`, error.stack);
+        if (requestedOblpns && requestedOblpns.length > 0) {
+          this.logger.logError(`getDataShipping - Error al obtener datos para OBLPNs: ${JSON.stringify(requestedOblpns, null, 2)}`);
+        }
       }
     }
 
