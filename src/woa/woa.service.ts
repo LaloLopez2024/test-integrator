@@ -477,10 +477,29 @@ constructor(
       // Obtener los tipos configurados
       const configuredObLpnTypes = await this.woaConfigService.getObLpnTypes();
       const isConfiguredType = configuredObLpnTypes.includes(woa.ob_lpn_type);
+      const isVolumenOverLimit = volumenOverLimitOblpns.includes(woa.oblpn);
+
+      // Verificar customer exception para tipo '02' antes de aplicar lógica general
+      let isCustomerException = false;
+      if(woa.cust_nbr != '' && woa.ob_lpn_type === '02') {
+        isCustomerException = await this.woaConfigService.isCustomerExceptionConfigured(woa.cust_nbr);
+        this.logger.logError(`getSeccionesConcatenadas - oblpn: ${woa.oblpn} - ob_lpn_type = 02 - cust_nbr: ${woa.cust_nbr} - isCustomerException: ${isCustomerException} - isVolumenOverLimit: ${isVolumenOverLimit}`);
+      }
+
+      if(woa.ob_lpn_type === '02') {
+        // Para tipo '02': Solo mantener SEC3 y SEC4 si tiene customer exception Y supera volumen
+        // En todos los demás casos, vaciar SEC3 y SEC4
+        if (!isVolumenOverLimit || !isCustomerException) {
+          sec3 = '';
+          sec4 = '';
+          this.logger.logError(`sec3 y 4 se puso en vacio (tipo 02), isCustomerException:${isCustomerException} - isVolumenOverLimit:${isVolumenOverLimit}`);
+        } else {
+          this.logger.logError(`sec3 y 4 se mantienen (tipo 02 + customer exception + volumen over limit), isCustomerException:${isCustomerException} - isVolumenOverLimit:${isVolumenOverLimit}`);
+        }
+      }
 
       if(isConfiguredType) {
-        // Verificar si el OBLPN está en volumenOverLimitOblpns y NO está en envioChequeoOblpns
-        const isVolumenOverLimit = volumenOverLimitOblpns.includes(woa.oblpn);
+        // Verificar si el OBLPN está en volumenOverLimitOblpns y NO está en envioChequeoOblpn        
         const isEnvioChequeo = envioChequeoOblpns.includes(woa.oblpn);
         
         if (isVolumenOverLimit && !isEnvioChequeo) {
@@ -488,10 +507,17 @@ constructor(
           this.logger.logError(`sec1 se puso en vacio, isEnvioChequeo:${isEnvioChequeo} - isVolumenOverLimit:${isVolumenOverLimit}`);
         }
 
-        if (!isVolumenOverLimit) {
-          sec3 = '';
-          sec4 = '';
-          this.logger.logError(`sec3 y 4 se puso en vacio, isVolumenOverLimit:${isVolumenOverLimit}`);
+        // Lógica para SEC3 y SEC4 para otros tipos configurados (no tipo '02'):
+        // - Si !isVolumenOverLimit: vaciar SEC3 y SEC4
+        // - Si isVolumenOverLimit = true: mantener SEC3 y SEC4 (comportamiento original)
+        if (woa.ob_lpn_type !== '02') {
+          if (!isVolumenOverLimit) {
+            // Si no supera volumen, vaciar SEC3 y SEC4 (comportamiento normal para tipos configurados)
+            sec3 = '';
+            sec4 = '';
+            this.logger.logError(`sec3 y 4 se puso en vacio, isVolumenOverLimit:${isVolumenOverLimit}`);
+          }
+          // Si isVolumenOverLimit = true: SEC3 y SEC4 se mantienen (comportamiento por defecto)
         }
       }
 

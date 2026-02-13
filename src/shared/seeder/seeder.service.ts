@@ -17,7 +17,7 @@ export class SeederService {
     console.log("CARGANDO SEEDERS");
     //await this.createSequences();
     //await this.createSequenceDetails();
-    await this.createWoaSystemParameters();
+    //await this.createWoaSystemParameters();
   }
 
   private async createSequences(): Promise<void> {
@@ -186,6 +186,14 @@ export class SeederService {
         CreatedDate: new Date(),
         CreatedUser: 3,
       },
+      {
+        interface_name: 'WOA',
+        parameter_name: 'CUSTOMER_EXCEPTIONS',
+        parameter_value: 'C015883',
+        description: 'Códigos de clientes (woa.cust_nbr) para la lógica de tramas con ob_lpn_type = 2 y que deben enviarse las secciones SEC3 Y SEC4 y generar el archivo de impresión. Formato: valores separados por comas (ej: C002258,C000706,C012219).',
+        CreatedDate: new Date(),
+        CreatedUser: 3,
+      }
     ];
 
     for (const param of woaParameters) {

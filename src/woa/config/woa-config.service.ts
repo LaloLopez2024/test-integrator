@@ -5,6 +5,7 @@ import { SystemParameterService } from 'src/shared/service/system-parameter.serv
 interface ConfigCache {
   volumenLineaThreshold: number;
   obLpnTypes: string[];
+  customerExceptions: string[],
   lastModified: number;
 }
 
@@ -14,6 +15,7 @@ export class WoaConfigService {
   private cache: ConfigCache | null = null;
   private readonly defaultThreshold = 18000;
   private readonly defaultObLpnTypes = ['06', '07'];
+  private readonly defaultCustomerExceptions = [];
   private readonly cacheCheckInterval = 5000; // Verificar cada 5 segundos
   private lastCacheCheck = 0;
 
@@ -50,6 +52,26 @@ export class WoaConfigService {
   async isObLpnTypeConfigured(obLpnType: string): Promise<boolean> {
     const configuredTypes = await this.getObLpnTypes();
     return configuredTypes.includes(obLpnType);
+  }
+
+    /**
+   * Obtiene los códigos de clientes desde la tabla de parámetros del sistema
+   * Los valores se cachean y se actualizan automáticamente si cambian en la BD
+   * @returns Array de clientes de cust_nbr (por defecto: ['C002258','C000706','C012219'])
+   */
+  async getCustomerExceptions(): Promise<string[]> {
+    await this.refreshCacheIfNeeded();
+    return this.cache?.customerExceptions ?? this.defaultCustomerExceptions;
+  }
+
+  /**
+   * Verifica si un customer_nbr está en la lista configurada
+   * @param customer_nbr Código de cliente a verificar
+   * @returns true si está en la lista configurada
+   */
+  async isCustomerExceptionConfigured(customer_nbr: string): Promise<boolean> {
+    const customerExceptions = await this.getCustomerExceptions();
+    return customerExceptions.includes(customer_nbr);
   }
 
   /**
@@ -100,6 +122,7 @@ export class WoaConfigService {
       // Valores por defecto
       let threshold = this.defaultThreshold;
       let obLpnTypes = [...this.defaultObLpnTypes];
+      let customerExceptions = [];
 
       // Leer VOLUMEN_LINEA_THRESHOLD
       const thresholdValue = parameters.get('VOLUMEN_LINEA_THRESHOLD');
@@ -132,12 +155,31 @@ export class WoaConfigService {
         this.logger.logError(`OBLPN_TYPES no encontrado en BD para interfaz ${this.interfaceName}. Usando valores por defecto: ${this.defaultObLpnTypes.join(',')}`);
       }
 
+      // Leer CUSTOMER_EXCEPTIONS
+      const customerExceptionsValue = parameters.get('CUSTOMER_EXCEPTIONS');
+      if (customerExceptionsValue) {
+        // Separar por comas y limpiar espacios
+        const parsedCustomers = customerExceptionsValue
+          .split(',')
+          .map(type => type.trim())
+          .filter(type => type.length > 0);
+        
+        if (parsedCustomers.length > 0) {
+          customerExceptions = parsedCustomers;
+        } else {
+          this.logger.logError(`CUSTOMER_EXCEPTIONS tiene un valor inválido: ${customerExceptionsValue}. Usando valores por defecto: ${this.defaultCustomerExceptions.join(',')}`);
+        }
+      } else {
+        this.logger.logError(`CUSTOMER_EXCEPTIONS no encontrado en BD para interfaz ${this.interfaceName}. Usando valores por defecto: ${this.defaultCustomerExceptions.join(',')}`);
+      }
+
       // Obtener la fecha de última modificación
       const lastModified = await this.systemParameterService.getLastModifiedDate(this.interfaceName);
 
       this.cache = {
         volumenLineaThreshold: threshold,
         obLpnTypes: obLpnTypes,
+        customerExceptions: customerExceptions,
         lastModified: lastModified ?? Date.now(),
       };
 
@@ -149,6 +191,7 @@ export class WoaConfigService {
         this.cache = {
           volumenLineaThreshold: this.defaultThreshold,
           obLpnTypes: [...this.defaultObLpnTypes],
+          customerExceptions: this.defaultCustomerExceptions,
           lastModified: Date.now(),
         };
       }
